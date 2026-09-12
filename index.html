@@ -518,10 +518,21 @@
 
   <div style="margin-top:16px;padding:12px;border:2px solid #8b775a;border-radius:12px;background:#fff9e8">
     <div style="font-weight:1000">💾 セーブのバックアップ</div>
-    <div style="font-size:12px;font-weight:900;line-height:1.5;margin:5px 0 9px">ほんばんのセーブをJSONファイルに書き出したり、同じゲームへ戻したりできます。</div>
+    <div style="font-size:12px;font-weight:900;line-height:1.5;margin:5px 0 9px">ほんばんのセーブをJSONファイルに書き出したり、セーブコードをコピーしてLINEやメモに保管したり、同じゲームへ戻したりできます。</div>
     <div class="row">
       <button class="pbtn green" id="saveExportBtn" type="button">⬇️ 書き出す</button>
       <button class="pbtn" id="saveImportBtn" type="button">⬆️ 読み込む</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="pbtn green" id="saveCodeCopyBtn" type="button">📋 セーブコードをコピー</button>
+      <button class="pbtn" id="saveCodeOpenBtn" type="button">📝 セーブコードを読み込む</button>
+    </div>
+    <div id="saveCodePanel" style="display:none;margin-top:9px">
+      <textarea id="saveCodeInput" rows="5" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="ここにセーブコードを貼り付けてください" style="width:100%;resize:vertical;border:2px solid #8b775a;border-radius:8px;padding:8px;font:700 12px/1.45 monospace;background:#fff"></textarea>
+      <div class="row" style="margin-top:7px">
+        <button class="pbtn green" id="saveCodeApplyBtn" type="button">このコードを読み込む</button>
+        <button class="pbtn" id="saveCodeCloseBtn" type="button">とじる</button>
+      </div>
     </div>
     <div id="saveTransferStatus" style="margin-top:8px;font-size:12px;font-weight:900;line-height:1.5"></div>
     <input id="saveImportFile" type="file" accept="application/json,.json" style="display:none">
@@ -828,6 +839,8 @@ const SAVE_PRE_IMPORT_KEY='taku_village_061_pre_import';
 // It never replaces or edits the existing backup/rescue keys.
 const SAVE_IMPORT_VALIDATED_KEY='taku_village_061_import_validated';
 const SAVE_IMPORT_MAX_BYTES=5*1024*1024;
+const SAVE_CODE_PREFIX='TAKU061C1';
+const SAVE_CODE_MAX_CHARS=8*1024*1024;
 
 function isPlainSaveObject(v){
   return !!v && typeof v==='object' && !Array.isArray(v);
@@ -977,6 +990,150 @@ async function importGameSaveFile(file){
     if(localStorage.getItem(SAVE_KEY)!==nextRaw)throw new Error('save verify failed');
   }catch(e){
     // Best-effort rollback of the main key. Existing backup/rescue keys are never touched here.
+    try{
+      if(hadOld)localStorage.setItem(SAVE_KEY,oldRaw);
+      else localStorage.removeItem(SAVE_KEY);
+      localStorage.removeItem(SAVE_IMPORT_VALIDATED_KEY);
+    }catch(_e){}
+    saveTransferStatus('読み込みに失敗しました。元のほんばんセーブを維持／復元しました。',true);
+    return;
+  }
+
+  saveTransferStatus('読み込みました。ゲームを再読み込みします。');
+  location.reload();
+}
+
+
+function saveCodeEnvelopeFromCurrent(){
+  const raw=localStorage.getItem(SAVE_KEY);
+  const data=parseSaved(raw);
+  if(!data)return {error:'ほんばんのセーブが見つからないか、壊れています。'};
+  const err=validateGameSaveData(data);
+  if(err)return {error:err};
+  return {envelope:{
+    identifier:SAVE_EXPORT_ID,
+    formatVersion:SAVE_EXPORT_FORMAT_VERSION,
+    saveKey:SAVE_KEY,
+    exportedAt:new Date().toISOString(),
+    saveData:data
+  }};
+}
+
+function bytesToBase64Url(bytes){
+  let binary='';
+  const step=0x8000;
+  for(let i=0;i<bytes.length;i+=step){
+    binary+=String.fromCharCode(...bytes.subarray(i,i+step));
+  }
+  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+function base64UrlToBytes(text){
+  if(!/^[A-Za-z0-9_-]+$/.test(text))throw new Error('セーブコードの文字列が不正です。');
+  const base64=text.replace(/-/g,'+').replace(/_/g,'/');
+  const padded=base64+'='.repeat((4-base64.length%4)%4);
+  const binary=atob(padded);
+  const out=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++)out[i]=binary.charCodeAt(i);
+  return out;
+}
+
+function saveCodeChecksum(bytes){
+  let crc=0xffffffff;
+  for(const b of bytes){
+    crc^=b;
+    for(let i=0;i<8;i++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);
+  }
+  return ((crc^0xffffffff)>>>0).toString(16).padStart(8,'0');
+}
+
+function makeSaveCode(envelope){
+  const text=JSON.stringify(envelope);
+  const bytes=new TextEncoder().encode(text);
+  const payload=bytesToBase64Url(bytes);
+  return `${SAVE_CODE_PREFIX}.${payload}.${saveCodeChecksum(bytes)}`;
+}
+
+function parseSaveCode(text){
+  const code=String(text||'').trim().replace(/\s+/g,'');
+  if(!code)return {error:'セーブコードが入力されていません。'};
+  if(code.length>SAVE_CODE_MAX_CHARS)return {error:'セーブコードが長すぎるため読み込みませんでした。'};
+  const parts=code.split('.');
+  if(parts.length!==3 || parts[0]!==SAVE_CODE_PREFIX)return {error:'「たくのぼうけん」のセーブコードではありません。'};
+  if(!/^[0-9a-fA-F]{8}$/.test(parts[2]))return {error:'セーブコードの確認情報が不正です。'};
+  try{
+    const bytes=base64UrlToBytes(parts[1]);
+    if(saveCodeChecksum(bytes)!==parts[2].toLowerCase())return {error:'セーブコードが破損しているため読み込みませんでした。'};
+    const obj=JSON.parse(new TextDecoder().decode(bytes));
+    return {obj};
+  }catch(e){
+    return {error:'セーブコードを正しく読み取れませんでした。'};
+  }
+}
+
+async function copySaveCode(){
+  if(demoMode){saveTransferStatus('おためしモードではなく、ほんばんのセーブコードをコピーします。');}
+  const current=saveCodeEnvelopeFromCurrent();
+  if(current.error){saveTransferStatus('セーブコードを作れませんでした：'+current.error,true);return;}
+
+  let code='';
+  try{code=makeSaveCode(current.envelope);}
+  catch(e){saveTransferStatus('セーブコードを作れませんでした。現在のセーブは変更していません。',true);return;}
+
+  try{
+    if(!navigator.clipboard || !window.isSecureContext)throw new Error('clipboard unavailable');
+    await navigator.clipboard.writeText(code);
+    saveTransferStatus('セーブコードをコピーしました。LINEやメモなどに貼り付けて保管できます。');
+    return;
+  }catch(e){}
+
+  const panel=document.getElementById('saveCodePanel');
+  const input=document.getElementById('saveCodeInput');
+  panel.style.display='block';
+  input.value=code;
+  input.focus();input.select();
+  let copied=false;
+  try{copied=document.execCommand('copy');}catch(e){}
+  if(copied)saveTransferStatus('セーブコードをコピーしました。LINEやメモなどに貼り付けて保管できます。');
+  else saveTransferStatus('自動コピーができませんでした。表示されたコードを長押ししてコピーしてください。',true);
+}
+
+function importSaveCodeText(text){
+  saveTransferStatus('セーブコードを確認しています…');
+  const parsed=parseSaveCode(text);
+  if(parsed.error){saveTransferStatus('読み込みを中止しました：'+parsed.error,true);return;}
+
+  const obj=parsed.obj;
+  const err=validateSaveBackupEnvelope(obj);
+  if(err){saveTransferStatus('読み込みを中止しました：'+err,true);return;}
+
+  // JSON読み込みと同じ互換処理。保存済みの値を優先し、足りない項目だけ補う。
+  const normalized=mergeSaveDefaults(DEFAULT_STATE,obj.saveData);
+  normalized.saveSchemaVersion=SAVE_SCHEMA_VERSION;
+  const normalizedError=validateGameSaveData(normalized);
+  if(normalizedError){saveTransferStatus('互換処理後の確認で問題が見つかったため中止しました：'+normalizedError,true);return;}
+
+  const ok=window.confirm('このセーブコードをほんばんデータへ戻しますか？\n\n現在のデータは pre_import に退避してから読み込みます。');
+  if(!ok){saveTransferStatus('読み込みをキャンセルしました。');return;}
+
+  let oldRaw=null;
+  let hadOld=false;
+  try{
+    oldRaw=localStorage.getItem(SAVE_KEY);
+    hadOld=oldRaw!==null;
+    const preImportRaw=hadOld?oldRaw:JSON.stringify(realLoad());
+
+    // pre_import の退避に失敗した場合は SAVE_KEY を一切変更しない。
+    localStorage.setItem(SAVE_PRE_IMPORT_KEY,preImportRaw);
+
+    const nextRaw=JSON.stringify(normalized);
+    localStorage.setItem(SAVE_KEY,nextRaw);
+    localStorage.setItem(SAVE_IMPORT_VALIDATED_KEY,'1');
+
+    // 本番キーへ書いた内容をその場で照合する。
+    if(localStorage.getItem(SAVE_KEY)!==nextRaw)throw new Error('save verify failed');
+  }catch(e){
+    // 読み込み途中で失敗した場合は、元の本番セーブへ戻す。
     try{
       if(hadOld)localStorage.setItem(SAVE_KEY,oldRaw);
       else localStorage.removeItem(SAVE_KEY);
@@ -2281,6 +2438,22 @@ document.getElementById('saveImportBtn').onclick=()=>{
 document.getElementById('saveImportFile').onchange=e=>{
   const file=e.target.files&&e.target.files[0];
   if(file)importGameSaveFile(file);
+};
+document.getElementById('saveCodeCopyBtn').onclick=copySaveCode;
+document.getElementById('saveCodeOpenBtn').onclick=()=>{
+  const panel=document.getElementById('saveCodePanel');
+  panel.style.display='block';
+  const input=document.getElementById('saveCodeInput');
+  input.value='';
+  input.focus();
+  saveTransferStatus('保管してあるセーブコードを貼り付けてください。');
+};
+document.getElementById('saveCodeApplyBtn').onclick=()=>{
+  importSaveCodeText(document.getElementById('saveCodeInput').value);
+};
+document.getElementById('saveCodeCloseBtn').onclick=()=>{
+  document.getElementById('saveCodePanel').style.display='none';
+  document.getElementById('saveCodeInput').value='';
 };
 document.getElementById('parentBtn').onclick=openParent;
 document.getElementById('soundBtn').onclick=()=>{on=!on;document.getElementById('soundBtn').textContent=on?'🔊':'🔇';if(on)startBg();else{clearInterval(bg);bg=null}};
