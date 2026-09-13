@@ -941,7 +941,7 @@ function makeReadQuiz(){
     type:'read',
     word,
     emoji,
-    prompt:`「${word}」は どれ？`,
+    prompt:'これは なに？',
     display:emoji,
     choices:hiraganaShuffle([word,...distractors]),
     answer:word,
@@ -3859,9 +3859,9 @@ function drawNewNpcScenery(){
 
 function drawNewVillageNpcs(){
   const specs=[
-    [NEW_VILLAGE_NPCS.amy,AMY_NPC_IMG,44,63],
-    [NEW_VILLAGE_NPCS.hana,HANA_NPC_IMG,45,64],
-    [NEW_VILLAGE_NPCS.ganzou,GANZOU_NPC_IMG,50,67]
+    [NEW_VILLAGE_NPCS.amy,AMY_NPC_IMG,56,70],
+    [NEW_VILLAGE_NPCS.hana,HANA_NPC_IMG,58,72],
+    [NEW_VILLAGE_NPCS.ganzou,GANZOU_NPC_IMG,64,76]
   ];
 
   for(const [npc,img,w,h] of specs){
