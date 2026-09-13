@@ -614,6 +614,16 @@ function customNpcAt(tx,ty){
   return null;
 }
 
+// New NPCs occupy their feet tile. Because their sprites extend upward into the
+// tile behind them, keep that north tile clear too so Taku never appears to
+// stand on an NPC's head. The south/front tile remains free for natural talking.
+function customNpcPlayerBlockedAt(tx,ty){
+  for(const npc of Object.values(NEW_VILLAGE_NPCS)){
+    if(tx===npc.x && (ty===npc.y || ty===npc.y-1))return true;
+  }
+  return false;
+}
+
 function talkNewVillageNpc(npc){
   if(!npc)return false;
   if(npc.id==='amy'){
@@ -2722,7 +2732,7 @@ let q={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]}[d],
 
 // NPCs use a virtual body tile. Taku may move freely around them
 // (front, back, left, right), but cannot step through the body itself.
-if(customNpcAt(nx,ny)||npcBodyAt(nx,ny)){
+if(customNpcPlayerBlockedAt(nx,ny)||npcBodyAt(nx,ny)){
   draw();hint();return;
 }
 // Chickens are tiny moving bodies; don't let Taku stand directly on one.
@@ -3886,7 +3896,8 @@ function stepAmyRoam(now){
     const [nx,ny]=AMY_ROAM_POINTS[amyRoamIndex];
     const dist=Math.abs(nx-amy.x)+Math.abs(ny-amy.y);
     if(dist!==1)continue;
-    if(p.x===nx&&p.y===ny)continue;
+    // Amy must not step into a position whose feet/body sprite would overlap Taku.
+    if((p.x===nx&&p.y===ny)||(p.x===nx&&p.y===ny-1))continue;
     if(customNpcAt(nx,ny))continue;
 
     amy.x=nx;
