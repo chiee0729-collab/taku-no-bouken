@@ -116,6 +116,7 @@
 .miningTaku{position:absolute;right:42px;bottom:39px;width:112px;height:150px;z-index:4;transform-origin:52px 132px}
 .miningTakuBody{position:absolute;left:19px;bottom:0;width:82px;height:76px;object-fit:contain}
 .miningSwingTool{position:absolute;left:27px;top:50px;width:58px;height:58px;object-fit:contain;transform-origin:11px 50px;z-index:5}
+.miningSwingTool.emerald{left:19px;top:40px;width:76px;height:76px;transform-origin:14px 66px}
 .miningScene.swingUp .miningSwingTool{animation:mineUp .26s ease-out forwards}
 .miningScene.swingDown .miningSwingTool{animation:mineDown .30s cubic-bezier(.25,.8,.3,1) forwards}
 .miningScene.swingUp .miningTaku{animation:takuWindup .26s ease-out forwards}
@@ -2774,6 +2775,15 @@ function startMiningCutin(){
   document.getElementById('miningImpact').textContent='カン！';
   document.getElementById('miningFx').textContent='';
   document.getElementById('miningHelp').textContent='がめんを タップしてね！';
+
+  // 採掘カットインでも、現在使っているつるはしと同じ見た目にする。
+  const miningTool=document.querySelector('#miningScene .miningSwingTool');
+  if(miningTool){
+    const emerald=hasEmeraldPickaxe();
+    miningTool.src=emerald?EMERALD_PICKAXE_SRC:PICKAXE_IMG.src;
+    miningTool.classList.toggle('emerald',emerald);
+  }
+
   document.getElementById('miningQuizArea').style.display='none';
   document.getElementById('miningResult').textContent='';
   document.getElementById('miningModal').classList.add('show');return true;
