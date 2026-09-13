@@ -1736,7 +1736,7 @@ const QUICK_ORDER=['stone','chickens','flowers','home','visitwoman','bigtree','f
 
 // ===== 第二弾クエスト（前半） =====
 // quickQuests / miniquests / storyQuest とは完全に別の保存領域。
-// state: 0=未受注, 1=進行中, 2=条件達成（報酬待ち）, 3=報酬受取済み（将来用）
+// state: 0=未受注, 1=進行中, 2=条件達成（主に図鑑用）, 3=報酬受取済み
 const SECOND_QUESTS={
   wood:{
     id:'wood',emoji:'🌳',title:'げんぼくを 3こ',
@@ -1771,6 +1771,22 @@ function ensureSecondQuests(){
   });
   if(!('secondQuestSelected' in S))S.secondQuestSelected=null;
   if(S.secondQuestSelected && !SECOND_QUESTS[S.secondQuestSelected])S.secondQuestSelected=null;
+
+  // 2026-09 第二弾クエスト報酬修正。
+  // 木・石・チェストだけを一度だけ未受注へ戻して、たくがもう一度遊べるようにする。
+  // 図鑑・旧ストーリー・他クエストは触らない。
+  if(!S.secondQuestRewardResetV1){
+    const resetIds=['wood','stone','chest'];
+    resetIds.forEach(id=>{
+      if(S.secondQuests[id]){
+        S.secondQuests[id].state=0;
+        S.secondQuests[id].count=0;
+      }
+    });
+    if(resetIds.includes(S.secondQuestSelected))S.secondQuestSelected=null;
+    S.secondQuestRewardResetV1=true;
+    try{save()}catch(e){}
+  }
 }
 
 function secondQuestsUnlocked(){
@@ -1842,9 +1858,13 @@ function secondQuestAction(id,amount=1){
   st.count=Math.min(Number(q.required)||9999,(Number(st.count)||0)+Math.max(0,Number(amount)||0));
   if(q.required!=null && st.count>=q.required){
     st.count=q.required;
-    st.state=2; // 条件達成。報酬仕様を決めるまでここで待つ。
-    pHistory(q.title+' の じょうけんを クリア');
+    st.state=3; // 達成と同時に報酬受取済みにする
+    const rewards=grantRewards([{id:'emerald',count:1}]);
+    pHistory(q.title+' クリア');
     if(S.secondQuestSelected===id)S.secondQuestSelected=nextActiveSecondQuest(id);
+    save();
+    questUI();
+    setTimeout(()=>{try{showQuestRewards(rewards,150)}catch(e){}},350);
   }
   return true;
 }
