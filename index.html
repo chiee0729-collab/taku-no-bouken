@@ -617,15 +617,27 @@ function customNpcAt(tx,ty){
 function talkNewVillageNpc(npc){
   if(!npc)return false;
   if(npc.id==='amy'){
-    simple('あみいちゃん','👧','きょうは なにを さがしにいくの？');
+    showQuestTalk(
+      'きょうは なにを さがしにいくの？',
+      [{label:'またね！',green:true,fn:()=>closeM('questTalkModal')}],
+      'amy'
+    );
     return true;
   }
   if(npc.id==='hana'){
-    simple('ハナばあちゃん','👵','この はたけ、むかしは もっと にぎやかだったんじゃよ。');
+    showQuestTalk(
+      'この はたけ、むかしは もっと にぎやかだったんじゃよ。',
+      [{label:'またね！',green:true,fn:()=>closeM('questTalkModal')}],
+      'hana'
+    );
     return true;
   }
   if(npc.id==='ganzou'){
-    simple('ガンゾウ','🔨','いい どうぐは たいせつに つかうんだぞ！');
+    showQuestTalk(
+      'いい どうぐは たいせつに つかうんだぞ！',
+      [{label:'わかった！',green:true,fn:()=>closeM('questTalkModal')}],
+      'ganzou'
+    );
     return true;
   }
   return false;
@@ -872,6 +884,104 @@ const Q=[['あめ','🌧️',['あめ','あね','あぬ'],'あめ','め'],
 ['たいまつ','🔥',['たいまつ','だいまつ','たいまづ'],'たいまつ','つ'],
 ['たからばこ','🧰',['たからはこ','たからばこ','たがらばこ'],'たからばこ','ば'],
 ['むらびと','🧑‍🌾',['むらひと','むらびと','むらぴと'],'むらびと','び']];
+// ===== ひらがな問題 v2 =====
+// ねらい：冒険を止めずに「ことばを読む」「文字とことばを結びつける」。
+// 出題比率：読む 50% / 穴あけ 30% / 見分け 20%。
+const HIRAGANA_QUIZ_WEIGHTS={read:50,hole:30,discriminate:20};
+
+const HIRAGANA_HOLE_QUIZZES=[
+  {word:'たぬき',emoji:'🦝',display:'た ○ き',choices:['ぬ','ね','の'],answer:'ぬ',focus:'ぬ'},
+  {word:'きっぷ',emoji:'🎟️',display:'き ○ ぷ',choices:['つ','っ','く'],answer:'っ',focus:'っ'},
+  {word:'こっぷ',emoji:'🥤',display:'こ ○ ぷ',choices:['つ','っ','く'],answer:'っ',focus:'っ'},
+  {word:'きって',emoji:'🎫',display:'き ○ て',choices:['つ','っ','く'],answer:'っ',focus:'っ'},
+  {word:'がっこう',emoji:'🏫',display:'が ○ こう',choices:['つ','っ','く'],answer:'っ',focus:'っ'},
+  {word:'らっぱ',emoji:'🎺',display:'ら ○ ぱ',choices:['つ','っ','く'],answer:'っ',focus:'っ'},
+  {word:'うさぎ',emoji:'🐰',display:'うさ ○',choices:['き','ぎ','じ'],answer:'ぎ',focus:'ぎ'},
+  {word:'りんご',emoji:'🍎',display:'りん ○',choices:['こ','ご','ど'],answer:'ご',focus:'ご'},
+  {word:'ぶた',emoji:'🐷',display:'○ た',choices:['ふ','ぶ','ぷ'],answer:'ぶ',focus:'ぶ'},
+  {word:'ぱんだ',emoji:'🐼',display:'○ んだ',choices:['は','ば','ぱ'],answer:'ぱ',focus:'ぱ'},
+  {word:'ぺんぎん',emoji:'🐧',display:'○ んぎん',choices:['へ','べ','ぺ'],answer:'ぺ',focus:'ぺ'},
+  {word:'にんじん',emoji:'🥕',display:'にん ○ ん',choices:['し','じ','ち'],answer:'じ',focus:'じ'},
+  {word:'きゅうり',emoji:'🥒',display:'き ○ うり',choices:['ゆ','ゅ','よ'],answer:'ゅ',focus:'ゅ'},
+  {word:'きゃべつ',emoji:'🥬',display:'き ○ べつ',choices:['や','ゃ','よ'],answer:'ゃ',focus:'ゃ'},
+  {word:'りゅう',emoji:'🐉',display:'り ○ う',choices:['ゆ','ゅ','よ'],answer:'ゅ',focus:'ゅ'},
+  {word:'きょうりゅう',emoji:'🦖',display:'き ○ うりゅう',choices:['よ','ょ','ゆ'],answer:'ょ',focus:'ょ'},
+  {word:'おにぎり',emoji:'🍙',display:'おに ○ り',choices:['き','ぎ','じ'],answer:'ぎ',focus:'ぎ'},
+  {word:'たまご',emoji:'🥚',display:'たま ○',choices:['こ','ご','ど'],answer:'ご',focus:'ご'}
+];
+
+function hiraganaShuffle(list){
+  const a=[...list];
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+function legacyQuizToDiscriminate(q){
+  return {
+    type:'discriminate',
+    word:q[0],
+    emoji:q[1],
+    prompt:'ただしい ことばは どれ？',
+    display:q[1],
+    choices:[...q[2]],
+    answer:q[3],
+    focus:q[4]||q[3]
+  };
+}
+
+function makeReadQuiz(){
+  const target=Q[Math.floor(Math.random()*Q.length)];
+  const word=target[0],emoji=target[1];
+  const distractors=hiraganaShuffle(Q.filter(q=>q[0]!==word))
+    .slice(0,2).map(q=>q[0]);
+  return {
+    type:'read',
+    word,
+    emoji,
+    prompt:`「${word}」は どれ？`,
+    display:emoji,
+    choices:hiraganaShuffle([word,...distractors]),
+    answer:word,
+    focus:target[4]||word
+  };
+}
+
+function makeHoleQuiz(){
+  const q=HIRAGANA_HOLE_QUIZZES[Math.floor(Math.random()*HIRAGANA_HOLE_QUIZZES.length)];
+  return {
+    type:'hole',
+    word:q.word,
+    emoji:q.emoji,
+    prompt:'○ に はいる もじは どれ？',
+    display:`${q.emoji}  ${q.display}`,
+    choices:[...q.choices],
+    answer:q.answer,
+    focus:q.focus||q.answer
+  };
+}
+
+function makeDiscriminateQuiz(){
+  return legacyQuizToDiscriminate(Q[Math.floor(Math.random()*Q.length)]);
+}
+
+function nextHiraganaQuiz(){
+  const r=Math.random()*100;
+  if(r<HIRAGANA_QUIZ_WEIGHTS.read)return makeReadQuiz();
+  if(r<HIRAGANA_QUIZ_WEIGHTS.read+HIRAGANA_QUIZ_WEIGHTS.hole)return makeHoleQuiz();
+  return makeDiscriminateQuiz();
+}
+
+function quizWord(q){return q?.word ?? q?.[0] ?? '';}
+function quizEmoji(q){return q?.emoji ?? q?.[1] ?? '';}
+function quizPrompt(q){return q?.prompt ?? 'ただしい ことばは どれ？';}
+function quizDisplay(q){return q?.display ?? q?.[1] ?? '';}
+function quizChoices(q){return q?.choices ?? q?.[2] ?? [];}
+function quizAnswer(q){return q?.answer ?? q?.[3] ?? '';}
+function quizFocus(q){return q?.focus ?? q?.[4] ?? quizAnswer(q);}
+
 const DEFAULT_STATE={inv:{ki:0,ishi:0,mugi:0,ninjin:0,emerald:0,ono:0,tsuru:0,emeraldTsuru:0,bread:0,ender:0,seed:0},em:0,quest:0,crafted:{},seen:[],stats:{},chest:false,visited:{home:true},homeChest:{capacity:12,items:{}}};
 
 // ===== 永続セーブ仕様 =====
@@ -2720,18 +2830,22 @@ function woodcutFirstSwing(){
 }
 
 function showWoodcutQuestion(){
-  woodcutQuestion=Q[Math.floor(Math.random()*Q.length)];
+  woodcutQuestion=nextHiraganaQuiz();
   woodcutLocked=false;
   document.getElementById('woodcutHelp').textContent='';
-  document.getElementById('woodcutEmoji').textContent=woodcutQuestion[1];
+  document.getElementById('woodcutResult').textContent='';
+  const area=document.getElementById('woodcutQuizArea');
+  const title=area.querySelector('h2');
+  if(title)title.textContent=quizPrompt(woodcutQuestion);
+  document.getElementById('woodcutEmoji').textContent=quizDisplay(woodcutQuestion);
   const box=document.getElementById('woodcutAnswers');box.innerHTML='';
-  woodcutQuestion[2].forEach(v=>{
+  quizChoices(woodcutQuestion).forEach(v=>{
     const b=document.createElement('button');
     b.textContent=v;
     b.onclick=()=>answerWoodcutQuestion(v);
     box.appendChild(b);
   });
-  document.getElementById('woodcutQuizArea').style.display='block';
+  area.style.display='block';
 }
 
 function finishWoodcutSuccess(){
@@ -2779,21 +2893,35 @@ function finishWoodcutFail(){
 function answerWoodcutQuestion(v){
   if(woodcutLocked||!woodcutQuestion)return;
   woodcutLocked=true;
-  [...document.querySelectorAll('#woodcutAnswers button')].forEach(b=>b.disabled=true);
-  const good=v===woodcutQuestion[3];
+  const buttons=[...document.querySelectorAll('#woodcutAnswers button')];
+  buttons.forEach(b=>b.disabled=true);
+  const correct=quizAnswer(woodcutQuestion),good=v===correct;
   if(!demoMode){
     PStats.answered++;
     if(good)PStats.correct++;
-    pLetter(woodcutQuestion[3],good);
+    pLetter(quizFocus(woodcutQuestion),good);
     savePStats();
   }
-  document.getElementById('woodcutQuizArea').style.display='none';
   if(good){
+    document.getElementById('woodcutQuizArea').style.display='none';
     document.getElementById('woodcutResult').textContent='✨ せいかい！';
     ok();
     setTimeout(finishWoodcutSuccess,260);
   }else{
-    finishWoodcutFail();
+    const wrong=buttons.find(b=>b.textContent===v);
+    const right=buttons.find(b=>b.textContent===correct);
+    if(wrong)wrong.style.background='#e8a49b';
+    if(right)right.style.background='#9cdb72';
+    document.getElementById('woodcutResult').textContent=`おしい！ せいかいは「${correct}」だよ。もういちど！`;
+    try{speak(quizWord(woodcutQuestion))}catch(e){}
+    setTimeout(()=>{
+      buttons.forEach(b=>{
+        b.disabled=false;
+        b.style.background='';
+      });
+      document.getElementById('woodcutResult').textContent='もういちど やってみよう！';
+      woodcutLocked=false;
+    },1100);
   }
 }
 
@@ -2876,17 +3004,21 @@ function miningTapRock(){
   },770);
 }
 function showMiningQuestion(){
-  miningQuestion=Q[Math.floor(Math.random()*Q.length)];
+  miningQuestion=nextHiraganaQuiz();
   miningLocked=false;
   document.getElementById('miningHelp').textContent='';
   document.getElementById('miningFx').textContent='';
-  document.getElementById('miningEmoji').textContent=miningQuestion[1];
+  document.getElementById('miningResult').textContent='';
+  const area=document.getElementById('miningQuizArea');
+  const title=area.querySelector('h2');
+  if(title)title.textContent=quizPrompt(miningQuestion);
+  document.getElementById('miningEmoji').textContent=quizDisplay(miningQuestion);
   const box=document.getElementById('miningAnswers');box.innerHTML='';
-  miningQuestion[2].forEach(v=>{
+  quizChoices(miningQuestion).forEach(v=>{
     const b=document.createElement('button');
     b.textContent=v;b.onclick=()=>answerMiningQuestion(v);box.appendChild(b);
   });
-  document.getElementById('miningQuizArea').style.display='block';
+  area.style.display='block';
 }
 function finishMining(success){
   if(!activeMiningRock)return;
@@ -2910,19 +3042,43 @@ function finishMining(success){
   },900);
 }
 function answerMiningQuestion(v){
-  if(miningLocked||!miningQuestion)return;miningLocked=true;
-  [...document.querySelectorAll('#miningAnswers button')].forEach(b=>b.disabled=true);
-  const good=v===miningQuestion[3];
-  if(!demoMode){PStats.answered++;if(good)PStats.correct++;pLetter(miningQuestion[3],good);savePStats()}
-  document.getElementById('miningQuizArea').style.display='none';
+  if(miningLocked||!miningQuestion)return;
+  miningLocked=true;
+  const buttons=[...document.querySelectorAll('#miningAnswers button')];
+  buttons.forEach(b=>b.disabled=true);
+  const correct=quizAnswer(miningQuestion),good=v===correct;
+  if(!demoMode){
+    PStats.answered++;
+    if(good)PStats.correct++;
+    pLetter(quizFocus(miningQuestion),good);
+    savePStats();
+  }
   if(good){
-    const scene=document.getElementById('miningScene');scene.classList.remove('swingUp','swingDown');void scene.offsetWidth;scene.classList.add('swingUp');
+    document.getElementById('miningQuizArea').style.display='none';
+    document.getElementById('miningResult').textContent='✨ せいかい！';
+    const scene=document.getElementById('miningScene');
+    scene.classList.remove('swingUp','swingDown');void scene.offsetWidth;scene.classList.add('swingUp');
     setTimeout(()=>{scene.classList.remove('swingUp');scene.classList.add('swingDown')},255);
     setTimeout(()=>{try{sfxMineHit()}catch(e){};finishMining(true)},500);
-  }else setTimeout(()=>finishMining(false),180);
+  }else{
+    const wrong=buttons.find(b=>b.textContent===v);
+    const right=buttons.find(b=>b.textContent===correct);
+    if(wrong)wrong.style.background='#e8a49b';
+    if(right)right.style.background='#9cdb72';
+    document.getElementById('miningResult').textContent=`おしい！ せいかいは「${correct}」だよ。もういちど！`;
+    try{speak(quizWord(miningQuestion))}catch(e){}
+    setTimeout(()=>{
+      buttons.forEach(b=>{
+        b.disabled=false;
+        b.style.background='';
+      });
+      document.getElementById('miningResult').textContent='もういちど やってみよう！';
+      miningLocked=false;
+    },1100);
+  }
 }
 document.getElementById('miningScene').onclick=miningTapRock;
-document.getElementById('miningListen').onclick=()=>{if(miningQuestion)speak(miningQuestion[0]);};
+document.getElementById('miningListen').onclick=()=>{if(miningQuestion)speak(quizWord(miningQuestion));};
 function hint(){
   let h={V:'むらびとが いるよ',T:'きが あるよ',R:'いわを しらべよう',S:'いしが あるよ',F:'はたけだよ',B:'たからばこ！',H:'たくの いえ',A:'さぎょうだい',G:'ふしぎな もん',W:'みずだよ',X:'たおれた き',N:'おねえさんが いるよ',Y:'たねが おちてる！'}[front().ch]||'あるいてみよう！';
   const act=document.getElementById('act');
@@ -3703,9 +3859,9 @@ function drawNewNpcScenery(){
 
 function drawNewVillageNpcs(){
   const specs=[
-    [NEW_VILLAGE_NPCS.amy,AMY_NPC_IMG,34,49],
-    [NEW_VILLAGE_NPCS.hana,HANA_NPC_IMG,35,50],
-    [NEW_VILLAGE_NPCS.ganzou,GANZOU_NPC_IMG,39,52]
+    [NEW_VILLAGE_NPCS.amy,AMY_NPC_IMG,44,63],
+    [NEW_VILLAGE_NPCS.hana,HANA_NPC_IMG,45,64],
+    [NEW_VILLAGE_NPCS.ganzou,GANZOU_NPC_IMG,50,67]
   ];
 
   for(const [npc,img,w,h] of specs){
@@ -4003,10 +4159,56 @@ function speak(s){
     speechSynthesis.speak(u);
   }catch(e){}
 }
-function quizStart(){cur=Q[Math.floor(Math.random()*Q.length)];locked=false;document.getElementById('qt').textContent='もんだい';document.getElementById('qp').textContent='ただしい ことばは どれ？';document.getElementById('qe').textContent=cur[1];document.getElementById('fb').textContent='';document.getElementById('qnext').style.display='none';let a=document.getElementById('answers');a.innerHTML='';cur[2].forEach(v=>{let b=document.createElement('button');b.className='answer';b.textContent=v;b.onclick=()=>answer(v,b);a.appendChild(b)});document.getElementById('quiz').classList.add('show')}document.getElementById('listen').onclick=()=>speak(cur[0]);
-function answer(v,b){if(locked)return;locked=true;lastGain=null;
-if(!demoMode){PStats.answered++;if(v===cur[3])PStats.correct++;pLetter(cur[3],v===cur[3]);savePStats();}
-[...document.querySelectorAll('.answer')].forEach(z=>z.disabled=true);if(v===cur[3]){b.classList.add('ok');document.getElementById('fb').textContent='✨ せいかい！';gain();ok()}else{b.classList.add('ng');[...document.querySelectorAll('.answer')].find(z=>z.textContent===cur[3])?.classList.add('ok');document.getElementById('fb').textContent='おしい！ こっちだよ';speak(cur[0])}document.getElementById('qnext').style.display='block'}
+function quizStart(){
+  cur=nextHiraganaQuiz();
+  locked=false;lastGain=null;
+  document.getElementById('qt').textContent='もんだい';
+  document.getElementById('qp').textContent=quizPrompt(cur);
+  document.getElementById('qe').textContent=quizDisplay(cur);
+  document.getElementById('fb').textContent='';
+  document.getElementById('qnext').style.display='none';
+  let a=document.getElementById('answers');a.innerHTML='';
+  quizChoices(cur).forEach(v=>{
+    let b=document.createElement('button');
+    b.className='answer';b.textContent=v;
+    b.onclick=()=>answer(v,b);a.appendChild(b)
+  });
+  document.getElementById('quiz').classList.add('show')
+}
+document.getElementById('listen').onclick=()=>speak(quizWord(cur));
+
+function answer(v,b){
+  if(locked)return;
+  locked=true;lastGain=null;
+  const correct=quizAnswer(cur),good=v===correct;
+  if(!demoMode){
+    PStats.answered++;
+    if(good)PStats.correct++;
+    pLetter(quizFocus(cur),good);
+    savePStats();
+  }
+  const buttons=[...document.querySelectorAll('.answer')];
+  buttons.forEach(z=>z.disabled=true);
+  if(good){
+    b.classList.add('ok');
+    document.getElementById('fb').textContent='✨ せいかい！';
+    gain();ok();
+    document.getElementById('qnext').style.display='block';
+  }else{
+    b.classList.add('ng');
+    buttons.find(z=>z.textContent===correct)?.classList.add('ok');
+    document.getElementById('fb').textContent=`おしい！ せいかいは「${correct}」だよ。もういちど！`;
+    speak(quizWord(cur));
+    setTimeout(()=>{
+      buttons.forEach(z=>{
+        z.disabled=false;
+        z.classList.remove('ok','ng');
+      });
+      document.getElementById('fb').textContent='もういちど やってみよう！';
+      locked=false;
+    },1100);
+  }
+}
 document.getElementById('qnext').onclick=()=>{
   closeM('quiz');
   if(lastGain)setTimeout(()=>showGain(lastGain),120);
@@ -4267,7 +4469,7 @@ document.getElementById('book').onclick=openBook;
 function sec(){if(p.x<8&&p.y<11)return'pond';if(p.x>18&&p.y<12)return'east';if(p.y<8)return'north';if(p.x>20&&p.y>14)return'gate';return'home'}document.getElementById('mapBtn').onclick=()=>{let c=document.getElementById('mini'),m=c.getContext('2d'),sx=c.width/W,sy=c.height/H;m.clearRect(0,0,c.width,c.height);function seen(a,b){if(a<8&&b<11)return!!S.visited.pond;if(a>18&&b<12)return!!S.visited.east;if(b<8)return!!S.visited.north;if(a>20&&b>14)return!!S.visited.gate;return true}for(let b=0;b<H;b++)for(let a=0;a<W;a++){let ch=tile(a,b),xx=a*sx,yy=b*sy;if(!seen(a,b)){m.fillStyle='#b9b7ab';m.fillRect(xx,yy,sx+1,sy+1);continue}let col='#8ccb68';if(ch==='P')col='#c9a66f';if(ch==='W')col='#62b6df';if(ch==='F')col='#8c603b';if(ch==='#')col='#3f7040';if(ch==='H')col='#e4c28f';m.fillStyle=col;m.fillRect(xx,yy,sx+1,sy+1);if(ch==='T'){m.fillStyle='#4f9147';m.fillRect(xx+sx*.2,yy+sy*.2,sx*.6,sy*.6)}if(ch==='R'||ch==='S'){m.fillStyle='#8d8780';m.fillRect(xx+sx*.2,yy+sy*.3,sx*.6,sy*.45)}if(ch==='A'){m.fillStyle='#9b6336';m.fillRect(xx+sx*.2,yy+sy*.2,sx*.6,sy*.6)}if(ch==='B'){m.fillStyle='#d2a64d';m.fillRect(xx+sx*.2,yy+sy*.25,sx*.6,sy*.5)}if(ch==='G'){m.fillStyle='#5a4030';m.fillRect(xx+sx*.2,yy+sy*.1,sx*.18,sy*.8);m.fillRect(xx+sx*.62,yy+sy*.1,sx*.18,sy*.8)}}let px=p.x*sx+sx/2,py=p.y*sy+sy/2;m.fillStyle='#fff';m.beginPath();m.arc(px,py,7,0,Math.PI*2);m.fill();m.fillStyle='#4e83c5';m.beginPath();m.arc(px,py,4.5,0,Math.PI*2);m.fill();document.getElementById('mapModal').classList.add('show')};
 
 document.getElementById('woodcutScene').onclick=woodcutFirstSwing;
-document.getElementById('woodcutListen').onclick=()=>{if(woodcutQuestion)speak(woodcutQuestion[0]);};
+document.getElementById('woodcutListen').onclick=()=>{if(woodcutQuestion)speak(quizWord(woodcutQuestion));};
 </script>
 <script>
 if ('serviceWorker' in navigator) {
