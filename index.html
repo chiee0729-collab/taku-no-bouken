@@ -318,7 +318,7 @@
     </div>
   </div>
 </div>
-<div class="app"><div class="top"><div><div class="title">たくのぼうけん　むら 0.32.0</div><div class="small">ぶろっくの むらを たんけんしよう！</div></div><div style="display:flex;gap:6px"><div class="badge">💚 <span id="em">0</span></div><button class="btn" id="questBtn" aria-label="クエスト">📜</button><button class="btn" id="parentBtn" aria-label="たくのきろく">📊</button><button class="btn" id="mapBtn">🗺️</button><button class="btn" id="soundBtn">🔊</button></div></div>
+<div class="app"><div class="top"><div><div class="title">たくのぼうけん　むら 0.32.1</div><div class="small">ぶろっくの むらを たんけんしよう！</div></div><div style="display:flex;gap:6px"><div class="badge">💚 <span id="em">0</span></div><button class="btn" id="questBtn" aria-label="クエスト">📜</button><button class="btn" id="parentBtn" aria-label="たくのきろく">📊</button><button class="btn" id="mapBtn">🗺️</button><button class="btn" id="soundBtn">🔊</button></div></div>
 <div id="modeBanner" style="display:none;margin:8px 10px 0;padding:9px 10px;border:3px solid #d88722;border-radius:12px;background:#fff0c7;color:#694519;font-weight:1000;text-align:center;line-height:1.45">
   🧪 おためし中<br><span style="font-size:12px">これはテスト用データです。本番のセーブは使っていません。</span>
   <button id="returnRealBtn" style="margin-left:8px;padding:7px 12px;border:2px solid #6f522f;border-radius:9px;background:#fff;font-weight:1000">ほんばんに もどる</button>
@@ -555,8 +555,8 @@
 
 <script>
 const WOODCUT_AXE_SRC='./game_asset_07.png';
-const WOODCUT_AXE_UI_SRC='./game_asset_06.png';
-const WOODCUT_AXE_MOVIE_SRC='./game_asset_06.png';
+const WOODCUT_AXE_UI_SRC='./woodcut_axe_clean.svg';
+const WOODCUT_AXE_MOVIE_SRC='./woodcut_axe_clean.svg';
 const STICK_UI_SRC='./stick_icon.png';
 const STONE_HOE_UI_SRC='./stone_hoe_icon.png';
 const SPECIAL_ROCK_SRC='./special_rock.png';
@@ -2085,7 +2085,7 @@ function finishSecondQuestReport(id){
     unlockRecipe('stick');
     pHistory('ぼうの レシピを おぼえた');
     save();questUI();draw();
-    showQuestTalk('よく あつめたな！<br><br>✨ <b>ぼうの レシピを おぼえた！</b><br><span style="font-size:14px">げんぼく 3こ → ぼう 1こ</span>',[
+    showQuestTalk('よく あつめたな！<br><br>✨ <b>ぼうの レシピを おぼえた！</b><br><span style="font-size:14px">げんぼく 5こ → ぼう 1こ</span>',[
       {label:'つくってみる！',green:true,fn:()=>closeM('questTalkModal')}
     ],'oldman');
     return true;
@@ -4600,7 +4600,7 @@ function questCheck(){ensureAdventure();questUI();save()}
 const CRAFT_RECIPES=[
   {id:'ono',materials:{ki:2,ishi:1}},
   {id:'tsuru',materials:{ki:2,ishi:2}},
-  {id:'stick',materials:{ki:3},output:1,unlock:'stick'},
+  {id:'stick',materials:{ki:5},output:1,unlock:'stick'},
   {id:'stoneHoe',materials:{stick:1,ishi:3},unlock:'stoneHoe'},
   {id:'bread',materials:{mugi:3}},
   {id:'emeraldTsuru',materials:{tsuru:1,emerald:3}},
@@ -4805,7 +4805,7 @@ function devPrepareReport(id){
   }
 
   const expected={
-    wood:'👴 「！」→報告 → <b>ぼうレシピ</b>（げんぼく3 → ぼう1）',
+    wood:'👴 「！」→報告 → <b>ぼうレシピ</b>（げんぼく5 → ぼう1）',
     stone:'🔨 「！」→報告 → <b>いしのくわレシピ</b>（ぼう1＋いし3）',
     chest:'🎀 「！」→報告 → <b>エメラルド×1 GET</b>',
     book:'👵 「！」→報告 → <b>たくの はたけ解放イベント</b>'
