@@ -318,10 +318,18 @@
     </div>
   </div>
 </div>
-<div class="app"><div class="top"><div><div class="title">たくのぼうけん　むら 0.32.3</div><div class="small">ぶろっくの むらを たんけんしよう！</div></div><div style="display:flex;gap:6px"><div class="badge">💚 <span id="em">0</span></div><button class="btn" id="questBtn" aria-label="クエスト">📜</button><button class="btn" id="parentBtn" aria-label="たくのきろく">📊</button><button class="btn" id="mapBtn">🗺️</button><button class="btn" id="soundBtn">🔊</button></div></div>
+<div class="app"><div class="top"><div><div class="title">たくのぼうけん　むら 0.32.4</div><div class="small">ぶろっくの むらを たんけんしよう！</div></div><div style="display:flex;gap:6px"><div class="badge">💚 <span id="em">0</span></div><button class="btn" id="questBtn" aria-label="クエスト">📜</button><button class="btn" id="parentBtn" aria-label="たくのきろく">📊</button><button class="btn" id="mapBtn">🗺️</button><button class="btn" id="soundBtn">🔊</button></div></div>
 <div id="modeBanner" style="display:none;margin:8px 10px 0;padding:9px 10px;border:3px solid #d88722;border-radius:12px;background:#fff0c7;color:#694519;font-weight:1000;text-align:center;line-height:1.45">
   🧪 おためし中<br><span style="font-size:12px">これはテスト用データです。本番のセーブは使っていません。</span>
   <button id="returnRealBtn" style="margin-left:8px;padding:7px 12px;border:2px solid #6f522f;border-radius:9px;background:#fff;font-weight:1000">ほんばんに もどる</button>
+  <div style="margin-top:8px;border-top:1px solid #c9944d;padding-top:7px">
+    Q-201の かくにん：げんぼく 2/3 から はじめるよ
+    <div style="display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:5px">
+      <button id="demoQ201Wood" type="button" class="pbtn">🪵 げんぼくを 1こ あつめる</button>
+      <button id="demoQ201Report" type="button" class="pbtn">👴 おじいさんに はなす</button>
+      <button id="demoQ201Craft" type="button" class="pbtn">🧰 クラフトを みる</button>
+    </div>
+  </div>
 </div>
 <div class="gamewrap"><div class="demolabel" id="demoLabel">🧪 おためし</div><canvas id="game" width="640" height="480"></canvas><div class="hud"><div class="quest"><div class="small">⭐ いまやること</div><div id="questText">🌳 きを 2こ あつめよう！</div></div><div class="hint" id="hint">あるいてみよう！</div></div></div>
 <div class="hotbarWrap"><div class="hotbar" id="hotbar"><button class="hotSlot empty" id="hotPickaxe" aria-label="つるはし"><span class="slotNum">1</span><img id="hotPickaxeImg" style="display:none" src="./game_asset_03.png" alt="つるはし"></button><button class="hotSlot empty" id="hotAxe" aria-label="おの" onclick="toggleAxe()"><span class="slotNum">2</span><img id="hotAxeImg" style="display:none" alt="おの"></button><button class="hotSlot empty" aria-label="から"><span class="slotNum">3</span></button><button class="hotSlot empty" aria-label="から"><span class="slotNum">4</span></button><button class="hotSlot empty" aria-label="から"><span class="slotNum">5</span></button></div></div>
@@ -2667,9 +2675,14 @@ function enterDemoMode(){
   ensureAdventure();
   ensureQuickQuests();
   ensureMiniquests();
+  ensureSecondQuests();
+  // Q-201専用のおためし進行。メモリ内だけで、本番セーブは読み書きしない。
+  S.secondQuests.wood={state:1,count:2};
+  S.secondQuestSelected='wood';
   equippedTool=null;
   setModeVisuals();
   document.getElementById('start').style.display='none';
+  questUI();
   try{audio();if(ac&&ac.resume)ac.resume();}catch(e){console.warn('audio demo skipped',e)}
   try{refreshHotbar();draw();hint();}catch(e){console.error('demo start error',e);document.getElementById('start').style.display='flex';return;}
   try{startBg()}catch(e){}
@@ -2678,6 +2691,24 @@ function enterDemoMode(){
 document.getElementById('startBtn').onclick=enterRealMode;
 document.getElementById('demoBtn').onclick=enterDemoMode;
 document.getElementById('returnRealBtn').onclick=enterRealMode;
+document.getElementById('demoQ201Wood').onclick=()=>{
+  if(!demoMode)return;
+  const st=S.secondQuests?.wood;
+  if(Number(st?.state)!==1)return simple('Q-201','🪵','げんぼくは もう 3こ あつまったよ。');
+  S.inv.ki=(S.inv.ki||0)+1;
+  discoverItem('ki');
+  secondQuestAction('wood',1);
+  save();draw();
+  simple('Q-201','🪵','げんぼくを 1こ あつめたよ！');
+};
+document.getElementById('demoQ201Report').onclick=()=>{
+  if(!demoMode)return;
+  talkOldMan();
+};
+document.getElementById('demoQ201Craft').onclick=()=>{
+  if(!demoMode)return;
+  craftOpen();
+};
 document.getElementById('questBtn').onclick=openSecondQuestScreen;
 document.getElementById('saveExportBtn').onclick=exportGameSave;
 document.getElementById('saveImportBtn').onclick=()=>{
