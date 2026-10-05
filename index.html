@@ -318,7 +318,7 @@
     </div>
   </div>
 </div>
-<div class="app"><div class="top"><div><div class="title">たくのぼうけん　むら 0.32.2</div><div class="small">ぶろっくの むらを たんけんしよう！</div></div><div style="display:flex;gap:6px"><div class="badge">💚 <span id="em">0</span></div><button class="btn" id="questBtn" aria-label="クエスト">📜</button><button class="btn" id="parentBtn" aria-label="たくのきろく">📊</button><button class="btn" id="mapBtn">🗺️</button><button class="btn" id="soundBtn">🔊</button></div></div>
+<div class="app"><div class="top"><div><div class="title">たくのぼうけん　むら 0.32.3</div><div class="small">ぶろっくの むらを たんけんしよう！</div></div><div style="display:flex;gap:6px"><div class="badge">💚 <span id="em">0</span></div><button class="btn" id="questBtn" aria-label="クエスト">📜</button><button class="btn" id="parentBtn" aria-label="たくのきろく">📊</button><button class="btn" id="mapBtn">🗺️</button><button class="btn" id="soundBtn">🔊</button></div></div>
 <div id="modeBanner" style="display:none;margin:8px 10px 0;padding:9px 10px;border:3px solid #d88722;border-radius:12px;background:#fff0c7;color:#694519;font-weight:1000;text-align:center;line-height:1.45">
   🧪 おためし中<br><span style="font-size:12px">これはテスト用データです。本番のセーブは使っていません。</span>
   <button id="returnRealBtn" style="margin-left:8px;padding:7px 12px;border:2px solid #6f522f;border-radius:9px;background:#fff;font-weight:1000">ほんばんに もどる</button>
@@ -807,7 +807,7 @@ const TREASURE_BOOK_IDS=['emerald','ender'];
 // IMPORTANT: this is created before DEFAULT_STATE is declared, so it must not
 // reference DEFAULT_STATE during page startup.
 const CURRENT_INVENTORY_IDS=[
-  'ki','ishi','mugi','ninjin','emerald','ono','tsuru','emeraldTsuru','bread','ender','seed'
+  'ki','ishi','mugi','ninjin','emerald','stick','ono','tsuru','emeraldTsuru','bread','ender','seed'
 ];
 const I=Object.fromEntries(
   CURRENT_INVENTORY_IDS
@@ -1899,7 +1899,7 @@ function ensureSecondQuests(){
   // 木・石・チェストだけを一度だけ未受注へ戻して、たくがもう一度遊べるようにする。
   // 図鑑・旧ストーリー・他クエストは触らない。
   if(!S.secondQuestRewardResetV1){
-    const resetIds=['wood','stone','chest'];
+    const resetIds=['stone','chest'];
     resetIds.forEach(id=>{
       if(S.secondQuests[id]){
         S.secondQuests[id].state=0;
@@ -1909,6 +1909,16 @@ function ensureSecondQuests(){
     if(resetIds.includes(S.secondQuestSelected))S.secondQuestSelected=null;
     S.secondQuestRewardResetV1=true;
     try{save()}catch(e){}
+  }
+  // 旧版で原木3個達成と同時に終了したセーブも、報告待ちへ引き継ぐ。
+  // 旧報酬として入手済みのエメラルドは変更しない。
+  if(!S.q201RecipeMigrationV1){
+    const wood=S.secondQuests.wood;
+    if(Number(wood.state)===3 || (Number(wood.state)===1 && (Number(wood.count)>=3 || Number(S.inv.ki)>=3))){
+      wood.state=2;wood.count=3;
+    }
+    S.q201RecipeMigrationV1=true;
+    // 読み込み時に自動保存しない。次の通常のセーブで移行状態を保存する。
   }
 }
 
@@ -1966,6 +1976,7 @@ function secondQuestAccept(id){
   // 行動型は「受注後にやった回数」だけを数えるので必ず0から。
   // 図鑑だけは現在の登録総数を表示し、目標数は後で決める。
   st.count=0;
+  if(id==='wood' && Number(S.inv.ki)>=3){st.count=3;st.state=2;}
   S.secondQuestSelected=id;
   pHistory(q.title+' を うけた');
   save();
@@ -1979,6 +1990,12 @@ function secondQuestAction(id,amount=1){
   if(!q || q.kind!=='action' || Number(st.state)!==1)return false;
 
   st.count=Math.min(Number(q.required)||9999,(Number(st.count)||0)+Math.max(0,Number(amount)||0));
+  if(id==='wood' && st.count>=q.required){
+    st.count=q.required;st.state=2;
+    pHistory('げんぼくを 3こ あつめた。おじいさんに ほうこく');
+    save();questUI();draw();
+    return true;
+  }
   if(q.required!=null && st.count>=q.required){
     st.count=q.required;
     st.state=3; // 達成と同時に報酬受取済みにする
@@ -2010,7 +2027,8 @@ function secondQuestSelectedLabel(){
   const id=S.secondQuestSelected;
   if(!id)return null;
   const q=SECOND_QUESTS[id],st=S.secondQuests[id];
-  if(!q || Number(st?.state)!==1)return null;
+  if(!q || ![1,2].includes(Number(st?.state)))return null;
+  if(id==='wood' && Number(st.state)===2)return '👴 おじいさんに げんぼくを ほうこくしよう！';
   return `${q.emoji} ${q.objective} ${secondQuestProgress(id)}/${secondQuestTargetText(id)}`;
 }
 
@@ -2020,10 +2038,12 @@ function makeSecondQuestRow(id,mode){
   row.style.cssText='display:flex;align-items:center;gap:8px;padding:9px 10px;border:2px solid #d8b66a;border-radius:11px;background:#fffaf0;text-align:left;font-weight:1000;';
   const info=document.createElement('div');
   info.style.cssText='flex:1;min-width:0;line-height:1.45;';
-  info.innerHTML=secondQuestLine(id)+(id==='book'&&q.required==null?'<div style="font-size:12px;color:#765f45">もくひょうの かずは あとで きめるよ</div>':'');
+  info.innerHTML=(id==='wood' && Number(st.state)===2?'🌳 げんぼく 3/3　👴 おじいさんに ほうこく！':secondQuestLine(id))+(id==='book'&&q.required==null?'<div style="font-size:12px;color:#765f45">もくひょうの かずは あとで きめるよ</div>':'');
   row.appendChild(info);
 
-  if(mode==='active'){
+  if(mode==='active' && id==='wood' && Number(st.state)===2){
+    const mark=document.createElement('div');mark.textContent='👴 ほうこくまち';row.appendChild(mark);
+  }else if(mode==='active'){
     const selected=S.secondQuestSelected===id;
     const b=document.createElement('button');
     b.className='pbtn '+(selected?'green':'');
@@ -2076,7 +2096,7 @@ function renderSecondQuestScreen(){
   let ac=0,av=0,dc=0;
   SECOND_ORDER.forEach(id=>{
     const st=Number(S.secondQuests[id].state||0);
-    if(st===1){active.appendChild(makeSecondQuestRow(id,'active'));ac++;}
+    if(st===1 || (id==='wood' && st===2)){active.appendChild(makeSecondQuestRow(id,'active'));ac++;}
     else if(st===0){available.appendChild(makeSecondQuestRow(id,'available'));av++;}
     else if(st===2||st===3){done.appendChild(makeSecondQuestRow(id,'done'));dc++;}
   });
@@ -2378,6 +2398,23 @@ function quickHomeReturned(){
 
 // Short-play quests are offered first. Existing story/seed quests remain underneath.
 function talkOldMan(){
+  ensureSecondQuests();
+  if(Number(S.secondQuests.wood.state)===2)return showQuestTalk(
+    'げんぼくを 3こ あつめたんだね！<br>ぼうの レシピを おしえるよ。',
+    [{label:'ほうこくする！',green:true,fn:()=>{
+      if(Number(S.secondQuests.wood.state)!==2)return;
+      S.secondQuests.wood.state=3;
+      if(S.secondQuestSelected==='wood')S.secondQuestSelected=nextActiveSecondQuest('wood');
+      pHistory('ぼうの レシピを ゲット！');
+      save();closeM('questTalkModal');draw();
+      resetGetOverlayMode();
+      document.querySelector('#getOverlay .getTitle').textContent='レシピ かいほう！';
+      document.getElementById('getEmoji').textContent='🦯';
+      document.getElementById('getName').textContent='ぼうの レシピを ゲット！';
+      document.getElementById('getOverlay').classList.add('show');
+      try{sfxGet()}catch(e){}
+      try{speak('ぼうの レシピを ゲット！')}catch(e){}
+    }}, {label:'あとで',fn:()=>closeM('questTalkModal')}]);
   ensureQuickQuests();
   const active=quickActive();
   if(active){
@@ -3948,7 +3985,7 @@ function drawPlazaFurniture(){
   rect(bx+3,by+31,50,2,'#8f5e39');
 
   // Keep the approved quest marker position.
-  if((S.storyQuest===0||S.storyQuest===2)&&QUEST_MARK_IMG.complete&&QUEST_MARK_IMG.naturalWidth){
+  if((S.storyQuest===0||S.storyQuest===2||Number(S.secondQuests?.wood?.state)===2)&&QUEST_MARK_IMG.complete&&QUEST_MARK_IMG.naturalWidth){
     x.drawImage(QUEST_MARK_IMG,
       Math.round(bx+12-camX),
       Math.round(by-66-camY),
@@ -4357,6 +4394,7 @@ function questReward(step){
 
 function questCheck(){ensureAdventure();questUI();save()}
 const CRAFT_RECIPES=[
+  {id:'stick',materials:{ki:3},unlockQuest:'wood'},
   {id:'ono',materials:{ki:2,ishi:1}},
   {id:'tsuru',materials:{ki:2,ishi:2}},
   {id:'bread',materials:{mugi:3}},
@@ -4438,6 +4476,7 @@ function craftOpen(){
   r.innerHTML='';
 
   CRAFT_RECIPES.forEach(recipe=>{
+    if(recipe.unlockQuest==='wood' && Number(S.secondQuests?.wood?.state)!==3)return;
     const missing=craftMissingLines(recipe);
     const can=!recipe.future && missing.length===0;
 
